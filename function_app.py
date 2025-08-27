@@ -8,13 +8,26 @@ from typing import Optional
 
 from azure.identity import DefaultAzureCredential
 from azure.ai.agents import AgentsClient
+from agent_instructions import STRUCTURAL_ENGINEER_INSTRUCTIONS
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
-@app.route(route="structure_agent", methods=["POST", "GET"])
+@app.route(route="structure_agent", methods=["POST", "GET", "OPTIONS"])
 def structure_agent(req: func.HttpRequest) -> func.HttpResponse:
     """Basic interaction with an Azure AI Agent.\n\n    Request body (JSON): { "prompt": "..." } or query string ?prompt=...\n    Environment variables required:\n      PROJECT_ENDPOINT  -> Azure AI Project endpoint (e.g. https://<your-project>.<region>.models.ai.azure.com)\n      MODEL_DEPLOYMENT_NAME -> Deployed model name within the project (e.g. gpt-4o-mini)\n      (Optional) AGENT_ID -> If provided, reuse existing agent instead of creating each request.\n    """
+    
+    # Handle CORS preflight requests
+    if req.method == "OPTIONS":
+        return func.HttpResponse(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"
+            }
+        )
+    
     logging.info("structure_agent function invoked")
 
     # --- Input Extraction ---
@@ -57,7 +70,7 @@ def structure_agent(req: func.HttpRequest) -> func.HttpResponse:
             agent = agents_client.create_agent(
                 model=model_deployment,
                 name="structure-agent",
-                instructions="You are a helpful agent that returns concise answers."
+                instructions=STRUCTURAL_ENGINEER_INSTRUCTIONS
             )
             agent_id = agent.id
 
@@ -177,5 +190,10 @@ def _json_response(payload: dict, status_code: int = 200) -> func.HttpResponse:
         body=json.dumps(payload),
         status_code=status_code,
         mimetype="application/json",
-        headers={"Content-Type": "application/json"}
+        headers={
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type, Authorization"
+        }
     )
